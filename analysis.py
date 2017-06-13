@@ -5,6 +5,13 @@ import matplotlib.image as mpimg
 import numpy as np
 import time 
 import pdb
+import collections
+import pandas as pd
+import imageio
+from PIL import Image
+
+filename = 'video.mp4'
+vid = imageio.get_reader(filename,  'ffmpeg')
 
 def show_frame(frame):
 	image = vid.get_data(frame)
@@ -30,27 +37,65 @@ def diff_frames(frame1, frame2):
 	f2 = vid.get_data(frame2)
 	return f1 - f2
 
-def main(frames):
+def find_duplicates(res=32):
+	# load in the video file
 	filename = 'video.mp4'
 	vid = imageio.get_reader(filename,  'ffmpeg')
-	
 	all_frames = vid.get_length()
 
-	start = time.time()
-	values = {}
-	hash_counts = {}
+	# we'll store the info on repeated frames here
+	seen_frames = {}
+	duplicate_frames = {}
 
-	for x in range(frames):
+	for x in range(all_frames): 
+		# get frame x
 		frame = vid.get_data(x)
+
 		if x % 1000 == 0:
 			print("frame count: ",x,"\t",round(x*1.0/all_frames,3)*100,'%')
-		hashed = hash(frame.tostring())
-		if values.get( hashed, None):
-			compare_frames(hash_counts[hashed][0],x)
-			hash_counts[hashed].append(x)
-		else:
-			values[hashed] = x
-			hash_counts[hashed] = [x]
 
-	print("Elapsed: ", time.time() - start,"seconds")
-	return [hash_counts[x] for x in hash_counts if len(hash_counts[x]) > 1]
+		# hash our frame
+		hashed = ahash(frame, res)
+		
+		if seen_frames.get( hashed, None):
+			# if we've seen this frame before, add it to the list of frames 
+			# that all have the same hashed value in duplicate_frames
+			duplicate_frames[hashed].append(x)
+		else:
+			# if it's the first time seeing a frame, put it in seen_frames
+			seen_frames[hashed] = x
+			duplicate_frames[hashed] = [x]
+
+	# return a list of lists of duplicate frames
+	return [duplicate_frames[x] for x in duplicate_frames if len(duplicate_frames[x]) > 1]
+
+def ahash(frame, res = 64):
+	i = Image.fromarray(frame)
+	i = i.resize((res,res), Image.ANTIALIAS).convert('L')
+	pixels = list(i.getdata())
+	avg = sum(pixels)/len(pixels)
+	bits = "".join(map(lambda pixel: '1' if pixel < avg else '0', pixels))
+	hexadecimal = int(bits, 2).__format__('016x').upper()
+	return hexadecimal
+
+def find_params():
+	res = {}
+	for y in range(8,102,4):
+		row = {}
+		bads = find_duplicates(y)
+		row["len"] = len(bads)
+		row["avg"] = np.mean([len(x) for x in bads])
+		row["std"] = np.std([len(x) for x in bads])
+		row["max"] = max([len(x) for x in bads])
+		print("*"*25)
+		print(y,row)
+		print("*"*25)
+		res[y] = row.copy()
+	return res
+
+
+
+
+
+
+

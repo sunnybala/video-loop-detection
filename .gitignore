@@ -9,6 +9,10 @@ __pycache__/
 # Video Files
 *.mp4
 temp/
+*.p
+*.png 
+*.DS_Store
+*.xlsx
 
 # Distribution / packaging
 .Python
